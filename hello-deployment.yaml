@@ -1,16 +1,20 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hello-node-name-from-yaml
+  name: nodeapp
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: nodeapp
   template:
     metadata:
       labels:
-        app: hello-node
+        app: nodeapp
     spec:
       containers:
-      - name: hello-node-kube-docker-image-container
-        image: hello-node-kube-docker-image:v1
+      - name: nodeapp
+        image: {{ .Values.app.image }}
         ports:
         - containerPort: 8080
+

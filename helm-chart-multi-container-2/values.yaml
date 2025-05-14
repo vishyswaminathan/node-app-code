@@ -1,5 +1,0 @@
-numReplicas: 2
-helloPort: 8080
-extHelloPort: 30080
-app2Port: 8081
-extApp2Port: 30081
