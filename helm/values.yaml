@@ -1,5 +1,11 @@
-numReplicas: 2
-helloPort: 8080
-extHelloPort: 30080
-app2Port: 8081
-extApp2Port: 30081
+replicaCount: 1
+
+app:
+  name: pythonapp
+  image: vishyswaminathan/python-image:latest
+  port: 8080
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
