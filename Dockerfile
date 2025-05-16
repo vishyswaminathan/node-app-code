@@ -8,8 +8,8 @@
     
     WORKDIR /app
     
-    # Copy app source code (adjust path if needed)
-    COPY . .
+    # Copy app source code from the node/ directory
+    COPY node/ .
     
     # Install only production dependencies
     RUN npm install --omit=dev
@@ -25,5 +25,5 @@
     EXPOSE 8080
     
     # Run the Node.js app
-    CMD ["node", "hello.js"]
+    CMD ["hello.js"]
     
