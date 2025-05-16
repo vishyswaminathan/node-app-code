@@ -1,6 +1,10 @@
-// new update to the pipe
+// new update to the pipe 
 pipeline {
     agent any
+
+    tools {
+        nodejs "node16"
+    }
 
     environment {
         REGISTRY = 'docker.io'
