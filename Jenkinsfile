@@ -1,4 +1,4 @@
-// first attempt.. lets try it again
+// installed node JS
 pipeline {
     agent any
 
