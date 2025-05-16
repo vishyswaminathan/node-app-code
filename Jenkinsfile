@@ -1,4 +1,4 @@
-// first attempte at the pipeline
+// first attempt.. lets try it again
 pipeline {
     agent any
 
