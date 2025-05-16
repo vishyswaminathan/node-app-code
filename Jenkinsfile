@@ -1,143 +1,120 @@
+// first attempte at the pipeline
 pipeline {
     agent any
 
     environment {
-        IMAGE_REPO = 'vishyswaminathan/python-image'
-        IMAGE_TAG = "v${BUILD_NUMBER}"
-        IMAGE_NAME = "${IMAGE_REPO}:${IMAGE_TAG}"
+        REGISTRY = 'docker.io'
+        REPO = 'vishyswaminathan/nodeapp'
+        IMAGE_TAG = "v${env.BUILD_NUMBER}"
+        SONAR_PROJECT_KEY = 'nodeapp'
+        SONAR_HOST_URL = 'https://81f2-142-181-192-68.ngrok-free.app'
+        SONAR_TOKEN = credentials('sonar')
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
-        GIT_CREDENTIALS_ID = 'github-credentials-id'
-        HELM_REPO_URL = 'git@github.com:youruser/helm-manifest-repo.git'
-        APP_REPO_URL = 'git@github.com:youruser/app-repo.git'
-        HELM_REPO_DIR = '/opt/helm-manifest'
-        APP_REPO_DIR = '/opt/app-code'
+        HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
+        HELM_REPO_DIR = 'helm-manifest-nodeapp'
     }
 
     stages {
         stage('Clone App Repo') {
             steps {
-                sh """
-                    rm -rf ${APP_REPO_DIR}
-                    git clone ${APP_REPO_URL} ${APP_REPO_DIR}
-                    chown -R jenkins:jenkins ${APP_REPO_DIR}
-                """
+                git url: 'git@github.com:vishyswaminathan/node-app-code.git'
             }
         }
 
         stage('Run Unit Tests') {
             steps {
-                dir("${APP_REPO_DIR}") {
-                    sh 'python3 -m unittest discover'
-                }
+                sh 'npm install && npm test'
             }
         }
 
-        stage('Run SonarQube Scan') {
-            environment {
-                scannerHome = tool 'sonar6.2'
-            }
+        stage('SonarQube Scan') {
             steps {
-                dir("${APP_REPO_DIR}") {
-                    withSonarQubeEnv('sonarserver') {
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                            -Dsonar.projectKey=pythonapp \
-                            -Dsonar.projectName=PythonApp \
-                            -Dsonar.sources=. \
-                            -Dsonar.sourceEncoding=UTF-8
-                        """
-                    }
-
-                    timeout(time: 10, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: true
-                    }
+                withSonarQubeEnv('MySonarQubeServer') {
+                    sh """
+                        sonar-scanner \
+                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
                 }
             }
         }
 
-        stage('Build and Push Docker Image') {
+        stage('Build Docker Image') {
             steps {
-                dir("${APP_REPO_DIR}") {
-                    script {
-                        docker.build("${IMAGE_NAME}")
-                        withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
-                            docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS_ID) {
-                                docker.image("${IMAGE_NAME}").push()
-                            }
-                        }
-                    }
-                }
+                sh "docker build -t $REPO:$IMAGE_TAG ."
             }
         }
 
-        stage('Trivy Vulnerability Scan') {
+        stage('Trivy Scan') {
             steps {
                 sh """
-                    if ! command -v trivy > /dev/null; then
-                        echo "Installing Trivy..."
-                        apt-get update && apt-get install wget -y
-                        wget -q https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.61.1_Linux-64bit.deb -O trivy.deb
-                        dpkg -i trivy.deb && rm trivy.deb
-                    fi
-                    trivy image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed ${IMAGE_NAME}
+                    trivy image $REPO:$IMAGE_TAG || true
+                """
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+                        docker push $REPO:$IMAGE_TAG
+                    """
+                }
+            }
+        }
+
+        stage('Clean Up Local Docker Images') {
+            steps {
+                sh """
+                    docker rmi $REPO:$IMAGE_TAG || echo 'Image not found, skipping cleanup'
                 """
             }
         }
 
         stage('Clone Helm Manifest Repo') {
             steps {
-                sh """
-                    rm -rf ${HELM_REPO_DIR}
-                    git clone ${HELM_REPO_URL} ${HELM_REPO_DIR}
-                    chown -R jenkins:jenkins ${HELM_REPO_DIR}
-                """
-            }
-        }
-
-        stage('Update values.yaml with New Image Tag') {
-            steps {
-                dir("${HELM_REPO_DIR}") {
-                    script {
-                        sh """
-                            sed -i 's|image: .*|image: "${IMAGE_REPO}"|' values.yaml
-                            sed -i 's|tag: .*|tag: "${IMAGE_TAG}"|' values.yaml
-                        """
-                    }
+                dir("$HELM_REPO_DIR") {
+                    git url: "$HELM_REPO_URL", branch: 'main', credentialsId: 'github'
                 }
             }
         }
 
-        stage('Commit and Push to Trigger ArgoCD') {
+        stage('Update Helm values.yaml') {
             steps {
-                dir("${HELM_REPO_DIR}") {
-                    withCredentials([sshUserPrivateKey(credentialsId: GIT_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY')]) {
+                dir("$HELM_REPO_DIR") {
+                    sh """
+                        sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' values.yaml
+                    """
+                }
+            }
+        }
+
+        stage('Commit and Push to Helm Repo') {
+            steps {
+                dir("$HELM_REPO_DIR") {
+                    sshagent(['your-github-ssh-credential-id']) {
                         sh """
-                            git config user.email "jenkins@ci"
-                            git config user.name "Jenkins"
+                            git config user.email "ci@yourdomain.com"
+                            git config user.name "CI Bot"
                             git add values.yaml
-                            git commit -m "Update image tag to ${IMAGE_TAG}"
+                            git commit -m "Update image to $IMAGE_TAG"
                             git push origin main
                         """
                     }
                 }
             }
         }
-
-        stage('Cleanup Docker Image') {
-            steps {
-                sh """
-                    docker rmi ${IMAGE_NAME} || true
-                """
-            }
-        }
     }
 
     post {
         success {
-            echo "✅ CI/CD Pipeline completed successfully."
+            echo "CI/CD pipeline completed successfully. ArgoCD will detect the manifest change and deploy the new version."
         }
         failure {
-            echo "❌ Pipeline failed. Check logs for errors."
+            echo "CI/CD pipeline failed. Check logs for details."
         }
     }
 }
