@@ -1,4 +1,4 @@
-// updated helm stage. time to re run the pipeline
+// installed ssh plugin
 pipeline {
     agent any
 
