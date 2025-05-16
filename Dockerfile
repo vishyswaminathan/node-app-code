@@ -1,25 +1,26 @@
 # --- Build stage ---
-    FROM node:20-slim as build
+    FROM node:20-slim AS build
     LABEL "Author"="Vishy"
     LABEL "Project"="nodejs"
     
-    # Update and upgrade base OS packages to reduce CVEs
+    # Update base OS packages and clean up
     RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
     
-    # Set working directory and install dependencies
     WORKDIR /app
-    COPY node/ /app/
+    
+    # Copy app source code (adjust path if needed)
+    COPY . .
     
     # Install only production dependencies
     RUN npm install --omit=dev
     
     # --- Final stage (distroless) ---
-    FROM gcr.io/distroless/nodejs-debian12
-    
-    # Copy app from build stage
-    COPY --from=build /app /app
+    FROM gcr.io/distroless/nodejs:20
     
     WORKDIR /app
+    
+    # Copy built app from the build stage
+    COPY --from=build /app /app
     
     EXPOSE 8080
     
