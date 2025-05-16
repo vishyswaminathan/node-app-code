@@ -1,4 +1,4 @@
-// updated pipe
+// updated sonar
 pipeline {
     agent any
 
@@ -31,7 +31,7 @@ pipeline {
         stage('SonarQube Scan') {
             steps {
                 dir("${APP_DIR}") {
-                    withSonarQubeEnv('MySonarQubeServer') {
+                    withSonarQubeEnv('sonar') {
                         sh """
                             sonar-scanner \
                             -Dsonar.projectKey=$SONAR_PROJECT_KEY \
