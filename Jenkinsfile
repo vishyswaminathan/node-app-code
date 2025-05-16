@@ -1,4 +1,5 @@
-// trying again
+// redid the pipeline-removed git clone stage
+
 pipeline {
     agent any
 
@@ -15,19 +16,15 @@ pipeline {
     }
 
     stages {
-        stage('Clone App Repo') {
-            steps {
-                git url: 'git@github.com:vishyswaminathan/node-app-code.git'
-            }
-        }
+        // Removed Clone App Repo stage because Jenkins checks out automatically
 
         stage('Run Unit Tests') {
-    steps {
-        withEnv(["PATH=/usr/local/bin:$PATH"]) {
-            sh 'npm install && npm test'
+            steps {
+                withEnv(["PATH=/usr/local/bin:$PATH"]) {
+                    sh 'npm install && npm test'
+                }
+            }
         }
-    }
-}
 
         stage('SonarQube Scan') {
             steps {
