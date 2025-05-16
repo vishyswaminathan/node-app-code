@@ -1,4 +1,4 @@
-// updated
+// updated path for docker
 pipeline {
     agent any
 
