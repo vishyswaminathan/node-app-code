@@ -1,4 +1,4 @@
-// updated path for docke file in configure system
+// updated helm stage
 pipeline {
     agent any
 
@@ -84,25 +84,27 @@ pipeline {
         }
 
         stage('Update Helm values.yaml') {
-            steps {
-                dir("${HELM_REPO_DIR}") {
-                    sh """
-                        sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' values.yaml
-                    """
-                }
-            }
+    steps {
+        dir("${HELM_REPO_DIR}") {
+            sh """
+                sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' helm/values.yaml
+            """
         }
+    }
+}
+
 
         stage('Commit and Push to Helm Repo') {
             steps {
                 dir("${HELM_REPO_DIR}") {
-                    sshagent(['your-github-ssh-credential-id']) {
+                    sshagent(['github']) {
                         sh """
-                            git config user.email "ci@yourdomain.com"
-                            git config user.name "CI Bot"
-                            git add values.yaml
+                            git config user.email "vishy.1981@gmail.com"
+                            git config user.name "vishy.swaminathan"
+                            git add helm/values.yaml
                             git commit -m "Update image to $IMAGE_TAG"
                             git push origin main
+
                         """
                     }
                 }
