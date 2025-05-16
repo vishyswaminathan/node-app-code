@@ -15,7 +15,7 @@
     RUN npm install --omit=dev
     
     # --- Final stage (distroless) ---
-    FROM gcr.io/distroless/nodejs:20
+    FROM gcr.io/distroless/nodejs:latest
     
     WORKDIR /app
     
