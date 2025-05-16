@@ -47,12 +47,10 @@ pipeline {
 }
 
         stage('Build Docker Image') {
-            steps {
-                dir("${APP_DIR}") {
-                    sh "docker build -t $REPO:$IMAGE_TAG ."
-                }
-            }
-        }
+    steps {
+        sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
+    }
+}
 
         stage('Trivy Scan') {
             steps {
