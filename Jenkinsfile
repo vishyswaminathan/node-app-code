@@ -1,4 +1,4 @@
-// new update to the pipe 
+// add nodejs tool in jenkins
 pipeline {
     agent any
 
