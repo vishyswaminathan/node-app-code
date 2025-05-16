@@ -2,7 +2,7 @@
   "name": "node-docker-kubernetes",
   "version": "1.0.0",
   "description": "Simple example of dockerising a node app, then using kubernetes",
-  "main": "index.js",
+  "main": "hello.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node hello.js"

@@ -25,5 +25,5 @@
     EXPOSE 8080
     
     # Run the Node.js app
-    CMD ["app.js"]
+    CMD ["node", "hello.js"]
     
