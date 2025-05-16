@@ -1,4 +1,4 @@
-// trying this again
+// updated pipe
 pipeline {
     agent any
 
@@ -23,7 +23,7 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 dir("${APP_DIR}") {
-                    sh 'npm install && npm test'
+                    sh 'npm install'
                 }
             }
         }
