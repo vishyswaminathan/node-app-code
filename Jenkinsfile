@@ -1,4 +1,4 @@
-// updated sonar
+// installed sonar scanner
 pipeline {
     agent any
 
