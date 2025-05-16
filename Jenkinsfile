@@ -1,4 +1,4 @@
-// updated path for docker
+// updated path for docke file in configure system
 pipeline {
     agent any
 
