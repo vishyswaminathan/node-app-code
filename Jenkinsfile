@@ -1,4 +1,4 @@
-// updated sonar stage
+// updated sonar token
 pipeline {
     agent any
 
