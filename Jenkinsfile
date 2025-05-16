@@ -1,4 +1,4 @@
-// installed sonar scanner
+// updated sonar stage
 pipeline {
     agent any
 
@@ -29,20 +29,22 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
-            steps {
-                dir("${APP_DIR}") {
-                    withSonarQubeEnv('sonar') {
-                        sh """
-                            sonar-scanner \
-                            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
-                            -Dsonar.login=$SONAR_TOKEN
-                        """
-                    }
+    steps {
+        dir("${APP_DIR}") {
+            withSonarQubeEnv('sonar') {
+                withEnv(["PATH+SONAR=/usr/local/bin"]) {
+                    sh """
+                        sonar-scanner \
+                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
                 }
             }
         }
+    }
+}
 
         stage('Build Docker Image') {
             steps {
