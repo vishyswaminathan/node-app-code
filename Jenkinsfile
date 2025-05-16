@@ -1,5 +1,4 @@
-// redid the pipeline-removed git clone stage
-
+// new update to the pipe
 pipeline {
     agent any
 
@@ -13,14 +12,13 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
         HELM_REPO_DIR = 'helm-manifest-nodeapp'
+        APP_DIR = 'node'
     }
 
     stages {
-        // Removed Clone App Repo stage because Jenkins checks out automatically
-
         stage('Run Unit Tests') {
             steps {
-                withEnv(["PATH=/usr/local/bin:$PATH"]) {
+                dir("${APP_DIR}") {
                     sh 'npm install && npm test'
                 }
             }
@@ -28,29 +26,31 @@ pipeline {
 
         stage('SonarQube Scan') {
             steps {
-                withSonarQubeEnv('MySonarQubeServer') {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                    """
+                dir("${APP_DIR}") {
+                    withSonarQubeEnv('MySonarQubeServer') {
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.login=$SONAR_TOKEN
+                        """
+                    }
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $REPO:$IMAGE_TAG ."
+                dir("${APP_DIR}") {
+                    sh "docker build -t $REPO:$IMAGE_TAG ."
+                }
             }
         }
 
         stage('Trivy Scan') {
             steps {
-                sh """
-                    trivy image $REPO:$IMAGE_TAG || true
-                """
+                sh "trivy image $REPO:$IMAGE_TAG || true"
             }
         }
 
@@ -67,23 +67,21 @@ pipeline {
 
         stage('Clean Up Local Docker Images') {
             steps {
-                sh """
-                    docker rmi $REPO:$IMAGE_TAG || echo 'Image not found, skipping cleanup'
-                """
+                sh "docker rmi $REPO:$IMAGE_TAG || echo 'Image not found, skipping cleanup'"
             }
         }
 
         stage('Clone Helm Manifest Repo') {
             steps {
-                dir("$HELM_REPO_DIR") {
-                    git url: "$HELM_REPO_URL", branch: 'main', credentialsId: 'github'
+                dir("${HELM_REPO_DIR}") {
+                    git url: "${HELM_REPO_URL}", branch: 'main', credentialsId: 'github'
                 }
             }
         }
 
         stage('Update Helm values.yaml') {
             steps {
-                dir("$HELM_REPO_DIR") {
+                dir("${HELM_REPO_DIR}") {
                     sh """
                         sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' values.yaml
                     """
@@ -93,7 +91,7 @@ pipeline {
 
         stage('Commit and Push to Helm Repo') {
             steps {
-                dir("$HELM_REPO_DIR") {
+                dir("${HELM_REPO_DIR}") {
                     sshagent(['your-github-ssh-credential-id']) {
                         sh """
                             git config user.email "ci@yourdomain.com"
