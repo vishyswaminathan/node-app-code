@@ -1,4 +1,4 @@
-// installed node JS..lets try again
+// trying again
 pipeline {
     agent any
 
@@ -22,10 +22,12 @@ pipeline {
         }
 
         stage('Run Unit Tests') {
-            steps {
-                sh 'npm install && npm test'
-            }
+    steps {
+        withEnv(["PATH=/usr/local/bin:$PATH"]) {
+            sh 'npm install && npm test'
         }
+    }
+}
 
         stage('SonarQube Scan') {
             steps {
