@@ -1,4 +1,4 @@
-// retrying the pipeline with sonarqube. no argo yet
+// webhook attempt
 pipeline {
     agent any
 
