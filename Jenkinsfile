@@ -1,4 +1,4 @@
-// installed ssh plugin
+// retrying the pipeline with sonarqube. no argo yet
 pipeline {
     agent any
 
@@ -11,7 +11,7 @@ pipeline {
         REPO = 'vishyswaminathan/nodeapp'
         IMAGE_TAG = "v${env.BUILD_NUMBER}"
         SONAR_PROJECT_KEY = 'nodeapp'
-        SONAR_HOST_URL = 'https://30e6-142-181-192-68.ngrok-free.app'
+        SONAR_HOST_URL = 'https://c09b-142-181-192-68.ngrok-free.app'
         SONAR_TOKEN = credentials('sonar')
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
