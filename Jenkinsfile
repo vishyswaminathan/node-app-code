@@ -1,3 +1,4 @@
+//updating  master branch to test argoCD deployment
 pipeline {
     agent any
 
@@ -108,3 +109,26 @@ pipeline {
         stage('Commit and Push to Helm Repo') {
             steps {
                 dir("${HELM_REPO_DIR}") {
+                    sshagent(['github']) {
+                        sh """
+                            git config user.email "vishy.1981@gmail.com"
+                            git config user.name "vishy.swaminathan"
+                            git add helm/values-*.yaml
+                            git commit -m "Update image to $IMAGE_TAG"
+                            git push origin main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ CI/CD pipeline completed successfully. ArgoCD will pick up the updated values file and deploy the new version."
+        }
+        failure {
+            echo "❌ CI/CD pipeline failed. Check the logs for errors."
+        }
+    }
+}
