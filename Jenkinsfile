@@ -1,4 +1,3 @@
-// webhook attempt
 pipeline {
     agent any
 
@@ -29,28 +28,28 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
-    steps {
-        dir("${APP_DIR}") {
-            withSonarQubeEnv('sonar') {
-                withEnv(["PATH+SONAR=/usr/local/bin"]) {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                    """
+            steps {
+                dir("${APP_DIR}") {
+                    withSonarQubeEnv('sonar') {
+                        withEnv(["PATH+SONAR=/usr/local/bin"]) {
+                            sh """
+                                sonar-scanner \
+                                -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+                                -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
         stage('Build Docker Image') {
-    steps {
-        sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
-    }
-}
+            steps {
+                sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
+            }
+        }
 
         stage('Trivy Scan') {
             steps {
@@ -83,41 +82,29 @@ pipeline {
             }
         }
 
-        stage('Update Helm values.yaml') {
-    steps {
-        dir("${HELM_REPO_DIR}") {
-            sh """
-                sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' helm/values.yaml
-            """
-        }
-    }
-}
-
-
-        stage('Commit and Push to Helm Repo') {
+        stage('Update Helm values file') {
             steps {
-                dir("${HELM_REPO_DIR}") {
-                    sshagent(['github']) {
-                        sh """
-                            git config user.email "vishy.1981@gmail.com"
-                            git config user.name "vishy.swaminathan"
-                            git add helm/values.yaml
-                            git commit -m "Update image to $IMAGE_TAG"
-                            git push origin main
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
+                    def valuesFile = ""
 
+                    if (branchName == "dev") {
+                        valuesFile = "helm/values-dev.yaml"
+                    } else if (branchName == "master") {
+                        valuesFile = "helm/values-prod.yaml"
+                    } else {
+                        valuesFile = "helm/values-staging.yaml"
+                    }
+
+                    dir("${HELM_REPO_DIR}") {
+                        sh """
+                            sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' $valuesFile
                         """
                     }
                 }
             }
         }
-    }
 
-    post {
-        success {
-            echo "CI/CD pipeline completed successfully. ArgoCD will detect the manifest change and deploy the new version."
-        }
-        failure {
-            echo "CI/CD pipeline failed. Check logs for details."
-        }
-    }
-}
+        stage('Commit and Push to Helm Repo') {
+            steps {
+                dir("${HELM_REPO_DIR}") {
