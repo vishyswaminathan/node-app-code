@@ -1,4 +1,4 @@
-// webhook attempt
+//updating pipeline to run for 3 branches
 pipeline {
     agent any
 
@@ -29,28 +29,28 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
-    steps {
-        dir("${APP_DIR}") {
-            withSonarQubeEnv('sonar') {
-                withEnv(["PATH+SONAR=/usr/local/bin"]) {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_TOKEN
-                    """
+            steps {
+                dir("${APP_DIR}") {
+                    withSonarQubeEnv('sonar') {
+                        withEnv(["PATH+SONAR=/usr/local/bin"]) {
+                            sh """
+                                sonar-scanner \
+                                -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=$SONAR_HOST_URL \
+                                -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
         stage('Build Docker Image') {
-    steps {
-        sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
-    }
-}
+            steps {
+                sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
+            }
+        }
 
         stage('Trivy Scan') {
             steps {
@@ -83,16 +83,28 @@ pipeline {
             }
         }
 
-        stage('Update Helm values.yaml') {
-    steps {
-        dir("${HELM_REPO_DIR}") {
-            sh """
-                sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' helm/values.yaml
-            """
-        }
-    }
-}
+        stage('Update Helm values file') {
+            steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
+                    def valuesFile = ""
 
+                    if (branchName == "dev") {
+                        valuesFile = "helm/values-dev.yaml"
+                    } else if (branchName == "master") {
+                        valuesFile = "helm/values-prod.yaml"
+                    } else {
+                        valuesFile = "helm/values-staging.yaml"
+                    }
+
+                    dir("${HELM_REPO_DIR}") {
+                        sh """
+                            sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' $valuesFile
+                        """
+                    }
+                }
+            }
+        }
 
         stage('Commit and Push to Helm Repo') {
             steps {
@@ -101,10 +113,9 @@ pipeline {
                         sh """
                             git config user.email "vishy.1981@gmail.com"
                             git config user.name "vishy.swaminathan"
-                            git add helm/values.yaml
+                            git add helm/values-*.yaml
                             git commit -m "Update image to $IMAGE_TAG"
                             git push origin main
-
                         """
                     }
                 }
@@ -114,10 +125,10 @@ pipeline {
 
     post {
         success {
-            echo "CI/CD pipeline completed successfully. ArgoCD will detect the manifest change and deploy the new version."
+            echo "✅ CI/CD pipeline completed successfully. ArgoCD will pick up the updated values file and deploy the new version."
         }
         failure {
-            echo "CI/CD pipeline failed. Check logs for details."
+            echo "❌ CI/CD pipeline failed. Check the logs for errors."
         }
     }
 }
