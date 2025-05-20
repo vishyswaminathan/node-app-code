@@ -47,7 +47,7 @@ pipeline {
     steps {
         script {
             def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-            env.DEPLOYMENT_TAG = "dev" // Default tag
+            env.DEPLOYMENT_TAG = "prod" // Default tag
 
             if (branchName == 'master') {
                 env.DEPLOYMENT_TAG = "prod"
