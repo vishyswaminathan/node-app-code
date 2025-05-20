@@ -44,20 +44,17 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-    steps {
-        script {
-            // Since we only build from master, we can hardcode the prod tag
-            env.DEPLOYMENT_TAG = "prod"
-            
-            sh """
-                docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
-                docker images | grep nodeapp
-                echo "Built image with tags: $IMAGE_TAG (versioned) and ${env.DEPLOYMENT_TAG} (production)"
-            """
+            steps {
+                script {
+                    env.DEPLOYMENT_TAG = "prod"
+                    sh """
+                        docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
+                        docker images | grep nodeapp
+                        echo "Built image with tags: $IMAGE_TAG and ${env.DEPLOYMENT_TAG}"
+                    """
+                }
+            }
         }
-    }
-}
-
 
         stage('Trivy Scan') {
             steps {
@@ -66,21 +63,22 @@ pipeline {
         }
 
         stage('Push Docker Image') {
-    steps {
-        withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh """
-                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
-                docker push $REPO:$IMAGE_TAG
-                docker push $REPO:${DEPLOYMENT_TAG}
-                echo "Pushed tags: $IMAGE_TAG and ${DEPLOYMENT_TAG}"
-            """
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+                        docker push $REPO:$IMAGE_TAG
+                        docker push $REPO:${env.DEPLOYMENT_TAG}
+                        echo "Pushed tags: $IMAGE_TAG and ${env.DEPLOYMENT_TAG}"
+                    """
+                }
+            }
         }
-    }
-}
 
         stage('Clean Up Local Docker Images') {
             steps {
-                 sh "docker rmi $REPO:$IMAGE_TAG $REPO:${env.DEPLOYMENT_TAG} || echo 'Image not found, skipping cleanup'"            }
+                sh "docker rmi $REPO:$IMAGE_TAG $REPO:${env.DEPLOYMENT_TAG} || echo 'Image not found, skipping cleanup'"
+            }
         }
 
         stage('Clone Helm Manifest Repo') {
@@ -94,21 +92,12 @@ pipeline {
         stage('Update Helm Values') {
             steps {
                 script {
-                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
                     def valuesFile = "helm/values-prod.yaml"
-                    def targetTag = IMAGE_TAG
-
-                    if (branchName == 'master') {
-                        valuesFile = "helm/values-prod.yaml"
-                        targetTag = "prod"
-                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
-                        valuesFile = "helm/values-staging.yaml"
-                        targetTag = "staging"
-                    }
-
+                    def targetTag = "prod" // Always use prod tag since we only build from master
+                    
                     dir("${HELM_REPO_DIR}") {
                         def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
-
+                        
                         if (currentTag != "\"${targetTag}\"") {
                             sh """
                                 sed -i.bak 's|tag: .*|tag: \"${targetTag}\"|' ${valuesFile}
@@ -116,7 +105,7 @@ pipeline {
                             """
                             env.VALUES_UPDATED = "true"
                         } else {
-                            echo "Tag in ${valuesFile} already matches ${targetTag}, no update needed"
+                            echo "Tag in ${valuesFile} already matches ${targetTag}"
                             env.VALUES_UPDATED = "false"
                         }
                     }
@@ -125,25 +114,26 @@ pipeline {
         }
 
         stage('Commit and Push to Helm Repo') {
-    when {
-        expression { return env.VALUES_UPDATED == "true" }
-    }
-    steps {
-        script {
-            dir("${HELM_REPO_DIR}") {
-                sshagent(['github']) {
-                    sh """
-                        git config user.email "vishy.1981@gmail.com"
-                        git config user.name "vishy.swaminathan"
-                        git add helm/values-*.yaml
-                        git commit -m "Auto-update: Set image tag to prod [BUILD ${env.BUILD_NUMBER}]"
-                        git push origin main
-                    """
+            when {
+                expression { return env.VALUES_UPDATED == "true" }
+            }
+            steps {
+                script {
+                    dir("${HELM_REPO_DIR}") {
+                        sshagent(['github']) {
+                            sh """
+                                git config user.email "vishy.1981@gmail.com"
+                                git config user.name "vishy.swaminathan"
+                                git add helm/values-*.yaml
+                                git commit -m "Auto-update: Set image tag to prod [BUILD ${env.BUILD_NUMBER}]"
+                                git push origin main
+                            """
+                        }
+                    }
                 }
             }
         }
     }
-}
 
     post {
         success {
