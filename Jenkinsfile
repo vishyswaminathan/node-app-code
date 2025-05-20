@@ -1,4 +1,3 @@
-/// updating feature
 pipeline {
     agent any
 
@@ -47,13 +46,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-    def branch = env.BRANCH_NAME ?: 'feature'
-    env.DEPLOYMENT_TAG = (branch == 'main' || branch == 'master') ? "prod" : "staging"
-    sh """
-        docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
-    """
-}
-
+                    def branch = env.BRANCH_NAME ?: 'feature'
+                    env.DEPLOYMENT_TAG = (branch == 'main' || branch == 'master') ? "prod" : "staging"
+                    sh """
+                        docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
+                        echo "Built image with tags: $IMAGE_TAG and ${env.DEPLOYMENT_TAG}"
+                    """
+                }
             }
         }
 
@@ -90,29 +89,31 @@ pipeline {
             }
         }
 
-        stage('Update Helm Values') {
-            steps {
-                script {
-                    def valuesFile = "helm/values-staging.yaml"
-                    def targetTag = "staging"
-                    
-                    dir("${HELM_REPO_DIR}") {
-                        def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
-                        
-                        if (currentTag != "\"${targetTag}\"") {
-                            sh """
-                                sed -i.bak 's|tag: .*|tag: \"${targetTag}\"|' ${valuesFile}
-                                rm -f ${valuesFile}.bak
-                            """
-                            env.VALUES_UPDATED = "true"
-                        } else {
-                            echo "Tag in ${valuesFile} already matches ${targetTag}"
-                            env.VALUES_UPDATED = "false"
-                        }
-                    }
+       stage('Update Helm Values') {
+    steps {
+        script {
+            def valuesFile = "helm/values-${env.DEPLOYMENT_TAG}.yaml"
+            dir("${HELM_REPO_DIR}") {
+                // Read the current tag from the file
+                def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim().replaceAll(/^"|\"$/, '')
+                
+                // Compare with IMAGE_TAG (not DEPLOYMENT_TAG anymore)
+                if (currentTag != "${IMAGE_TAG}") {
+                    sh """
+                        sed -i.bak 's|tag: .*|tag: "${IMAGE_TAG}"|' ${valuesFile}
+                        rm -f ${valuesFile}.bak
+                    """
+                    env.VALUES_UPDATED = "true"
+                    echo "🔧 Updated ${valuesFile} with tag ${IMAGE_TAG}"
+                } else {
+                    echo "✅ Tag already up to date in ${valuesFile}"
+                    env.VALUES_UPDATED = "false"
                 }
             }
         }
+    }
+}
+
 
         stage('Commit and Push to Helm Repo') {
             steps {
@@ -122,10 +123,17 @@ pipeline {
                             sh """
                                 git config user.email "vishy.1981@gmail.com"
                                 git config user.name "vishy.swaminathan"
-                                git add helm/values-*.yaml || echo "No changes to add"
-                                git commit -m "Auto-update: Set image tag to staging [BUILD ${env.BUILD_NUMBER}]" || echo "Nothing to commit"
-                                git push origin main
                             """
+                            def changes = sh(script: "git status --porcelain", returnStdout: true).trim()
+                            if (changes) {
+                                sh """
+                                    git add helm/values-*.yaml
+                                    git commit -m "Auto-update: Set image tag to ${env.DEPLOYMENT_TAG} [BUILD ${env.BUILD_NUMBER}]"
+                                    git push origin main
+                                """
+                            } else {
+                                echo "🔄 No changes in Helm values — skipping commit."
+                            }
                         }
                     }
                 }
