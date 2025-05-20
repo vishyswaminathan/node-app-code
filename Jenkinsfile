@@ -47,15 +47,15 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev"
+                    env.SECONDARY_TAG = "dev" // Default tag
 
                     if (branchName == 'master') {
-                        secondaryTag = "prod"
+                        env.SECONDARY_TAG = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
-                        secondaryTag = "staging"
+                        env.SECONDARY_TAG = "staging"
                     }
 
-                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${secondaryTag} ."
+                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${SECONDARY_TAG} ."
                 }
             }
         }
@@ -68,41 +68,19 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev"
-
-                    if (branchName == 'master') {
-                        secondaryTag = "prod"
-                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
-                        secondaryTag = "staging"
-                    }
-
-                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh """
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
-                            docker push $REPO:$IMAGE_TAG
-                            docker push $REPO:${secondaryTag}
-                        """
-                    }
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+                        docker push $REPO:$IMAGE_TAG
+                        docker push $REPO:${SECONDARY_TAG}
+                    """
                 }
             }
         }
 
         stage('Clean Up Local Docker Images') {
             steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev"
-                    
-                    if (branchName == 'master') {
-                        secondaryTag = "prod"
-                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
-                        secondaryTag = "staging"
-                    }
-                    
-                    sh "docker rmi $REPO:$IMAGE_TAG $REPO:${secondaryTag} || echo 'Image not found, skipping cleanup'"
-                }
+                sh "docker rmi $REPO:$IMAGE_TAG $REPO:${SECONDARY_TAG} || echo 'Image not found, skipping cleanup'"
             }
         }
 
@@ -123,7 +101,7 @@ pipeline {
 
                     if (branchName == 'master') {
                         valuesFile = "helm/values-prod.yaml"
-                        targetTag = "prod"  // Use "prod" tag for production
+                        targetTag = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         valuesFile = "helm/values-staging.yaml"
                         targetTag = "staging"
@@ -152,15 +130,17 @@ pipeline {
                 expression { return env.VALUES_UPDATED == "true" }
             }
             steps {
-                dir("${HELM_REPO_DIR}") {
-                    sshagent(['github']) {
-                        sh """
-                            git config user.email "vishy.1981@gmail.com"
-                            git config user.name "vishy.swaminathan"
-                            git add helm/values-*.yaml
-                            git commit -m "Auto-update: Set image tag to ${targetTag} [BUILD ${env.BUILD_NUMBER}]"
-                            git push origin main
-                        """
+                script {
+                    dir("${HELM_REPO_DIR}") {
+                        sshagent(['github']) {
+                            sh """
+                                git config user.email "vishy.1981@gmail.com"
+                                git config user.name "vishy.swaminathan"
+                                git add helm/values-*.yaml
+                                git commit -m "Auto-update: Set image tag to ${SECONDARY_TAG} [BUILD ${env.BUILD_NUMBER}]"
+                                git push origin main
+                            """
+                        }
                     }
                 }
             }
