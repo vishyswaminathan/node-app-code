@@ -125,25 +125,25 @@ pipeline {
         }
 
         stage('Commit and Push to Helm Repo') {
-            when {
-                expression { return env.VALUES_UPDATED == "true" }
-            }
-            steps {
-                script {
-                    dir("${HELM_REPO_DIR}") {
-                        sshagent(['github']) {
-                            sh """
-                                git config user.email "vishy.1981@gmail.com"
-                                git config user.name "vishy.swaminathan"
-                                git add helm/values-*.yaml
-                                git commit -m "Auto-update: Set image tag to ${env.DEPLOYMENT_TAG} [BUILD ${env.BUILD_NUMBER}]"                                git push origin main
-                            """
-                        }
-                    }
+    when {
+        expression { return env.VALUES_UPDATED == "true" }
+    }
+    steps {
+        script {
+            dir("${HELM_REPO_DIR}") {
+                sshagent(['github']) {
+                    sh """
+                        git config user.email "vishy.1981@gmail.com"
+                        git config user.name "vishy.swaminathan"
+                        git add helm/values-*.yaml
+                        git commit -m "Auto-update: Set image tag to prod [BUILD ${env.BUILD_NUMBER}]"
+                        git push origin main
+                    """
                 }
             }
         }
     }
+}
 
     post {
         success {
