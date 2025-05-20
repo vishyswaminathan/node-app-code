@@ -47,15 +47,15 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev" // Default tag
-                    
+                    def secondaryTag = "dev" // Default
+
                     if (branchName == 'master') {
-                        secondaryTag = "prod" // Push as `prod` in production
+                        secondaryTag = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         secondaryTag = "staging"
                     }
-                    
-                    sh 'ls -la'  // Debug: Verify Dockerfile exists
+
+                    // Build the image with both unique and branch-specific tag
                     sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${secondaryTag} ."
                 }
             }
@@ -72,23 +72,24 @@ pipeline {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
                     def secondaryTag = "dev"
-                    
+
                     if (branchName == 'master') {
-                        secondaryTag = "prod" // Push `prod` tag to Docker Hub
+                        secondaryTag = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         secondaryTag = "staging"
                     }
-                    
+
                     withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh """
                             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
                             docker push $REPO:$IMAGE_TAG
-                            docker push $REPO:${secondaryTag}  # Pushes `prod` if on master
+                            docker push $REPO:${secondaryTag}
                         """
                     }
                 }
             }
         }
+
 
         stage('Clean Up Local Docker Images') {
             steps {
@@ -115,27 +116,34 @@ pipeline {
             }
         }
 
-        stage('Update Helm Values') {
+                stage('Update Helm Values') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
                     def valuesFile = "helm/values-dev.yaml"
-                    def imageTagToUse = IMAGE_TAG  // Default: Use build number (vXX)
+                    def targetTag = IMAGE_TAG
 
                     if (branchName == 'master') {
                         valuesFile = "helm/values-prod.yaml"
-                        imageTagToUse = "prod"  // Use "prod" tag in production
+                        targetTag = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         valuesFile = "helm/values-staging.yaml"
-                        imageTagToUse = "staging"
+                        targetTag = "staging"
                     }
 
                     dir("${HELM_REPO_DIR}") {
-                        sh """
-                            sed -i.bak 's|tag: .*|tag: \"${imageTagToUse}\"|' ${valuesFile}
-                            rm -f ${valuesFile}.bak
-                        """
-                        env.VALUES_UPDATED = "true"
+                        def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
+
+                        if (currentTag != "\"${targetTag}\"") {
+                            sh """
+                                sed -i.bak 's|tag: .*|tag: \"${targetTag}\"|' ${valuesFile}
+                                rm -f ${valuesFile}.bak
+                            """
+                            env.VALUES_UPDATED = "true"
+                        } else {
+                            echo "Tag in ${valuesFile} already matches ${targetTag}, no update needed"
+                            env.VALUES_UPDATED = "false"
+                        }
                     }
                 }
             }
