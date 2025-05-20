@@ -87,28 +87,29 @@ pipeline {
         }
 
         stage('Update Helm values file') {
-            steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
-                    def valuesFile = ""
+    steps {
+        script {
+            def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
+            def valuesFile = ""
 
-                    if (branchName == "dev") {
-                        valuesFile = "helm/values-dev.yaml"
-                    } else if (branchName == "master") {
-                        valuesFile = "helm/values-prod.yaml"
-                    } else {
-                        valuesFile = "helm/values-staging.yaml"
-                    }
+            if (branchName == "dev") {
+                valuesFile = "helm/values-dev.yaml"
+            } else if (branchName == "master") {
+                valuesFile = "helm/values-prod.yaml"
+            } else {
+                valuesFile = "helm/values-staging.yaml"
+            }
 
-                    dir("${HELM_REPO_DIR}") {
-                        sh """
-                            # Replace the image under app: section
-                            sed -i '' '/^app:/,/^\\S/ s|\\(\\s*image:\\s*\\).*|\\1$REPO:$IMAGE_TAG|' $valuesFile
-                        """
-                    }
-                }
+            dir("${HELM_REPO_DIR}") {
+                sh """
+                    # Only replace the tag under app.image
+                    sed -i '' 's|^\\(\\s*tag:\\s*\\).*|\\1$IMAGE_TAG|' $valuesFile
+                """
             }
         }
+    }
+}
+
 
         stage('Commit and Push to Helm Repo') {
             steps {
