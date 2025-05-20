@@ -1,4 +1,4 @@
-//updating  dev to test argoCD deployment
+//updating dev to test argoCD deployment
 pipeline {
     agent any
 
@@ -99,7 +99,8 @@ pipeline {
 
                     dir("${HELM_REPO_DIR}") {
                         sh """
-                            sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' $valuesFile
+                            # Replace the image under app: section
+                            sed -i '' '/^app:/,/^\\S/ s|\\(\\s*image:\\s*\\).*|\\1$REPO:$IMAGE_TAG|' $valuesFile
                         """
                     }
                 }
