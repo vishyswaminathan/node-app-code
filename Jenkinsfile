@@ -8,7 +8,7 @@ pipeline {
     environment {
         REGISTRY = 'docker.io'
         REPO = 'vishyswaminathan/nodeapp'
-        IMAGE_TAG = "v${env.BUILD_NUMBER}"
+        IMAGE_TAG = "prod"
         SONAR_PROJECT_KEY = 'nodeapp'
         SONAR_HOST_URL = 'https://c09b-142-181-192-68.ngrok-free.app'
         SONAR_TOKEN = credentials('sonar')
@@ -51,7 +51,7 @@ pipeline {
 
             if (branchName == 'master') {
                 env.DEPLOYMENT_TAG = "prod"
-            } else if (branchName == 'staging' || branchName.startsWith('release/')) {
+            } else if (branchName == 'feature' || branchName.startsWith('release/')) {
                 env.DEPLOYMENT_TAG = "staging"
             }
 
