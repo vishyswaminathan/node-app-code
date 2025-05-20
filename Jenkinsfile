@@ -47,7 +47,7 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev" // Default
+                    def secondaryTag = "dev"
 
                     if (branchName == 'master') {
                         secondaryTag = "prod"
@@ -55,7 +55,6 @@ pipeline {
                         secondaryTag = "staging"
                     }
 
-                    // Build the image with both unique and branch-specific tag
                     sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${secondaryTag} ."
                 }
             }
@@ -90,7 +89,6 @@ pipeline {
             }
         }
 
-
         stage('Clean Up Local Docker Images') {
             steps {
                 script {
@@ -116,7 +114,7 @@ pipeline {
             }
         }
 
-                stage('Update Helm Values') {
+        stage('Update Helm Values') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
@@ -125,7 +123,7 @@ pipeline {
 
                     if (branchName == 'master') {
                         valuesFile = "helm/values-prod.yaml"
-                        targetTag = "prod"
+                        targetTag = "prod"  // Use "prod" tag for production
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         valuesFile = "helm/values-staging.yaml"
                         targetTag = "staging"
@@ -160,7 +158,7 @@ pipeline {
                             git config user.email "vishy.1981@gmail.com"
                             git config user.name "vishy.swaminathan"
                             git add helm/values-*.yaml
-                            git commit -m "Auto-update: Set image tag to ${imageTagToUse} [BUILD ${env.BUILD_NUMBER}]"
+                            git commit -m "Auto-update: Set image tag to ${targetTag} [BUILD ${env.BUILD_NUMBER}]"
                             git push origin main
                         """
                     }
