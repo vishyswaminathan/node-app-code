@@ -1,4 +1,4 @@
-//updating dev to test argoCD deployment
+//updating dev to test argoCD
 pipeline {
     agent any
 
