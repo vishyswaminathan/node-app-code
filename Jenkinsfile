@@ -8,7 +8,7 @@ pipeline {
     environment {
         REGISTRY = 'docker.io'
         REPO = 'vishyswaminathan/nodeapp'
-        IMAGE_TAG = "staging-${env.BUILD_NUMBER}"
+        IMAGE_TAG = "v${env.BUILD_NUMBER}"
         SONAR_PROJECT_KEY = 'nodeapp-feature'
         SONAR_HOST_URL = 'https://c09b-142-181-192-68.ngrok-free.app'
         SONAR_TOKEN = credentials('sonar')
