@@ -1,4 +1,4 @@
-//updating  master
+// Updating jenkinsfile
 pipeline {
     agent any
 
@@ -99,7 +99,7 @@ pipeline {
 
                     dir("${HELM_REPO_DIR}") {
                         sh """
-                            sed -i '' 's|image: .*|image: $REPO:$IMAGE_TAG|' $valuesFile
+                            sed -i '' 's|^\\(\\s*tag:\\s*\\).*|\\1${IMAGE_TAG}|' $valuesFile
                         """
                     }
                 }
