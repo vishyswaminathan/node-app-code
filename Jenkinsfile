@@ -47,13 +47,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    env.DEPLOYMENT_TAG = "staging"
-                    sh """
-                        docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
-                        docker images | grep nodeapp
-                        echo "Built image with tags: $IMAGE_TAG and ${env.DEPLOYMENT_TAG}"
-                    """
-                }
+    def branch = env.BRANCH_NAME ?: 'feature'
+    env.DEPLOYMENT_TAG = (branch == 'main' || branch == 'master') ? "prod" : "staging"
+    sh """
+        docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
+    """
+}
+
             }
         }
 
