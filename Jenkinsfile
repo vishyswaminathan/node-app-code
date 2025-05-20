@@ -1,4 +1,3 @@
-//updating dev to test argoCD
 pipeline {
     agent any
 
@@ -63,10 +62,11 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+
+                        # Push both versioned tag and dev tag
                         docker tag $REPO:$IMAGE_TAG $REPO:dev
                         docker push $REPO:$IMAGE_TAG
                         docker push $REPO:dev
-
                     """
                 }
             }
@@ -75,6 +75,7 @@ pipeline {
         stage('Clean Up Local Docker Images') {
             steps {
                 sh "docker rmi $REPO:$IMAGE_TAG || echo 'Image not found, skipping cleanup'"
+                sh "docker rmi $REPO:dev || echo 'Dev tag not found, skipping cleanup'"
             }
         }
 
@@ -87,29 +88,27 @@ pipeline {
         }
 
         stage('Update Helm values file') {
-    steps {
-        script {
-            def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
-            def valuesFile = ""
+            steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
+                    def valuesFile = ""
 
-            if (branchName == "dev") {
-                valuesFile = "helm/values-dev.yaml"
-            } else if (branchName == "master") {
-                valuesFile = "helm/values-prod.yaml"
-            } else {
-                valuesFile = "helm/values-staging.yaml"
-            }
+                    if (branchName == "dev") {
+                        valuesFile = "helm/values-dev.yaml"
+                    } else if (branchName == "master") {
+                        valuesFile = "helm/values-prod.yaml"
+                    } else {
+                        valuesFile = "helm/values-staging.yaml"
+                    }
 
-            dir("${HELM_REPO_DIR}") {
-                sh """
-                    # Only replace the tag under app.image
-                    sed -i '' 's|^\\(\\s*tag:\\s*\\).*|\\1$IMAGE_TAG|' $valuesFile
-                """
+                    dir("${HELM_REPO_DIR}") {
+                        sh """
+                            sed -i '' 's|^\\(\\s*tag:\\s*\\).*|\\1dev|' $valuesFile
+                        """
+                    }
+                }
             }
         }
-    }
-}
-
 
         stage('Commit and Push to Helm Repo') {
             steps {
@@ -119,7 +118,7 @@ pipeline {
                             git config user.email "vishy.1981@gmail.com"
                             git config user.name "vishy.swaminathan"
                             git add helm/values-*.yaml
-                            git commit -m "Update image to $IMAGE_TAG"
+                            git commit -m "Update image tag to dev"
                             git push origin main
                         """
                     }
