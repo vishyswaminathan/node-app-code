@@ -15,7 +15,7 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
         HELM_REPO_DIR = 'helm-manifest-nodeapp'
-        APP_DIR = 'node'
+        APP_DIR = 'node'  // Make sure this is correct relative to your workspace
     }
 
     stages {
@@ -31,15 +31,13 @@ pipeline {
             steps {
                 dir("${APP_DIR}") {
                     withSonarQubeEnv('sonar') {
-                        withEnv(["PATH+SONAR=/usr/local/bin"]) {
-                            sh """
-                                sonar-scanner \
-                                -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=$SONAR_HOST_URL \
-                                -Dsonar.login=$SONAR_TOKEN
-                            """
-                        }
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.login=$SONAR_TOKEN
+                        """
                     }
                 }
             }
@@ -48,7 +46,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir("${APP_DIR}") {
-                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:dev -f Dockerfile ."
+                    // Verify the Dockerfile exists before building
+                    sh 'ls -la'
+                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:dev ."
                 }
             }
         }
