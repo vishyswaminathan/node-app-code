@@ -15,7 +15,7 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
         HELM_REPO_DIR = 'helm-manifest-nodeapp'
-        APP_DIR = 'node'  // Make sure this is correct relative to your workspace
+        APP_DIR = 'node'  // Directory containing the Node.js application code
     }
 
     stages {
@@ -45,10 +45,20 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                dir("${APP_DIR}") {
-                    // Verify the Dockerfile exists before building
-                    sh 'ls -la'
-                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:dev ."
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    def secondaryTag = "dev" // Default tag
+                    
+                    // Set appropriate secondary tag based on branch
+                    if (branchName == 'master') {
+                        secondaryTag = "prod" 
+                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
+                        secondaryTag = "staging"
+                    }
+                    
+                    // Build from repository root where Dockerfile is located
+                    sh 'ls -la'  // Verify files at root level
+                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${secondaryTag} ."
                 }
             }
         }
@@ -61,19 +71,43 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
-                        docker push $REPO:$IMAGE_TAG
-                        docker push $REPO:dev
-                    """
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    def secondaryTag = "dev" // Default tag
+                    
+                    // Set appropriate secondary tag based on branch
+                    if (branchName == 'master') {
+                        secondaryTag = "prod" 
+                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
+                        secondaryTag = "staging"
+                    }
+                    
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+                            docker push $REPO:$IMAGE_TAG
+                            docker push $REPO:${secondaryTag}
+                        """
+                    }
                 }
             }
         }
 
         stage('Clean Up Local Docker Images') {
             steps {
-                sh "docker rmi $REPO:$IMAGE_TAG $REPO:dev || echo 'Image not found, skipping cleanup'"
+                script {
+                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    def secondaryTag = "dev" // Default tag
+                    
+                    // Set appropriate secondary tag based on branch
+                    if (branchName == 'master') {
+                        secondaryTag = "prod" 
+                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
+                        secondaryTag = "staging"
+                    }
+                    
+                    sh "docker rmi $REPO:$IMAGE_TAG $REPO:${secondaryTag} || echo 'Image not found, skipping cleanup'"
+                }
             }
         }
 
@@ -102,8 +136,10 @@ pipeline {
                         def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
                         
                         if (currentTag != "\"${IMAGE_TAG}\"") {
+                            // Use compatible sed syntax that works across different environments
                             sh """
-                                sed -i '' 's|tag: .*|tag: \"${IMAGE_TAG}\"|' ${valuesFile}
+                                sed -i.bak 's|tag: .*|tag: \"${IMAGE_TAG}\"|' ${valuesFile}
+                                rm -f ${valuesFile}.bak
                             """
                             env.VALUES_UPDATED = "true"
                         } else {
