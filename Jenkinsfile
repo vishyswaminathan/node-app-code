@@ -15,7 +15,7 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         HELM_REPO_URL = 'git@github.com:vishyswaminathan/helm-manifest-nodeapp.git'
         HELM_REPO_DIR = 'helm-manifest-nodeapp'
-        APP_DIR = 'node'  // Directory containing the Node.js application code
+        APP_DIR = 'node'
     }
 
     stages {
@@ -49,15 +49,13 @@ pipeline {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
                     def secondaryTag = "dev" // Default tag
                     
-                    // Set appropriate secondary tag based on branch
                     if (branchName == 'master') {
-                        secondaryTag = "prod" 
+                        secondaryTag = "prod" // Push as `prod` in production
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         secondaryTag = "staging"
                     }
                     
-                    // Build from repository root where Dockerfile is located
-                    sh 'ls -la'  // Verify files at root level
+                    sh 'ls -la'  // Debug: Verify Dockerfile exists
                     sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${secondaryTag} ."
                 }
             }
@@ -73,11 +71,10 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev" // Default tag
+                    def secondaryTag = "dev"
                     
-                    // Set appropriate secondary tag based on branch
                     if (branchName == 'master') {
-                        secondaryTag = "prod" 
+                        secondaryTag = "prod" // Push `prod` tag to Docker Hub
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         secondaryTag = "staging"
                     }
@@ -86,7 +83,7 @@ pipeline {
                         sh """
                             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
                             docker push $REPO:$IMAGE_TAG
-                            docker push $REPO:${secondaryTag}
+                            docker push $REPO:${secondaryTag}  # Pushes `prod` if on master
                         """
                     }
                 }
@@ -97,11 +94,10 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def secondaryTag = "dev" // Default tag
+                    def secondaryTag = "dev"
                     
-                    // Set appropriate secondary tag based on branch
                     if (branchName == 'master') {
-                        secondaryTag = "prod" 
+                        secondaryTag = "prod"
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         secondaryTag = "staging"
                     }
@@ -123,29 +119,23 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def valuesFile = "helm/values-dev.yaml" // Default to dev
+                    def valuesFile = "helm/values-dev.yaml"
+                    def imageTagToUse = IMAGE_TAG  // Default: Use build number (vXX)
 
                     if (branchName == 'master') {
                         valuesFile = "helm/values-prod.yaml"
+                        imageTagToUse = "prod"  // Use "prod" tag in production
                     } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         valuesFile = "helm/values-staging.yaml"
+                        imageTagToUse = "staging"
                     }
 
                     dir("${HELM_REPO_DIR}") {
-                        // First check if the tag actually needs updating
-                        def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
-                        
-                        if (currentTag != "\"${IMAGE_TAG}\"") {
-                            // Use compatible sed syntax that works across different environments
-                            sh """
-                                sed -i.bak 's|tag: .*|tag: \"${IMAGE_TAG}\"|' ${valuesFile}
-                                rm -f ${valuesFile}.bak
-                            """
-                            env.VALUES_UPDATED = "true"
-                        } else {
-                            echo "Tag in ${valuesFile} already matches ${IMAGE_TAG}, no update needed"
-                            env.VALUES_UPDATED = "false"
-                        }
+                        sh """
+                            sed -i.bak 's|tag: .*|tag: \"${imageTagToUse}\"|' ${valuesFile}
+                            rm -f ${valuesFile}.bak
+                        """
+                        env.VALUES_UPDATED = "true"
                     }
                 }
             }
@@ -162,7 +152,7 @@ pipeline {
                             git config user.email "vishy.1981@gmail.com"
                             git config user.name "vishy.swaminathan"
                             git add helm/values-*.yaml
-                            git commit -m "Auto-update: Set image tag to ${IMAGE_TAG} [BUILD ${env.BUILD_NUMBER}]"
+                            git commit -m "Auto-update: Set image tag to ${imageTagToUse} [BUILD ${env.BUILD_NUMBER}]"
                             git push origin main
                         """
                     }
