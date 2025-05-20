@@ -1,4 +1,4 @@
-/// testing the feature pipeline
+/// testing pipeline
 pipeline {
     agent any
 
