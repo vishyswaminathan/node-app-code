@@ -44,21 +44,25 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            steps {
-                script {
-                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    env.SECONDARY_TAG = "dev" // Default tag
+    steps {
+        script {
+            def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+            env.DEPLOYMENT_TAG = "dev" // Default tag
 
-                    if (branchName == 'master') {
-                        env.SECONDARY_TAG = "prod"
-                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
-                        env.SECONDARY_TAG = "staging"
-                    }
-
-                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:${SECONDARY_TAG} ."
-                }
+            if (branchName == 'master') {
+                env.DEPLOYMENT_TAG = "prod"
+            } else if (branchName == 'staging' || branchName.startsWith('release/')) {
+                env.DEPLOYMENT_TAG = "staging"
             }
+
+            sh """
+                docker build -t $REPO:$IMAGE_TAG -t $REPO:${DEPLOYMENT_TAG} .
+                docker images | grep nodeapp
+            """
         }
+    }
+}
+
 
         stage('Trivy Scan') {
             steps {
@@ -67,16 +71,17 @@ pipeline {
         }
 
         stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
-                        docker push $REPO:$IMAGE_TAG
-                        docker push $REPO:${SECONDARY_TAG}
-                    """
-                }
-            }
+    steps {
+        withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh """
+                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
+                docker push $REPO:$IMAGE_TAG
+                docker push $REPO:${DEPLOYMENT_TAG}
+                echo "Pushed tags: $IMAGE_TAG and ${DEPLOYMENT_TAG}"
+            """
         }
+    }
+}
 
         stage('Clean Up Local Docker Images') {
             steps {
