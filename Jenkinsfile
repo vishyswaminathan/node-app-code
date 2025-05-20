@@ -1,4 +1,4 @@
-// Updating jenkinsfile
+///updated jenkinsfile
 pipeline {
     agent any
 
@@ -48,7 +48,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $REPO:$IMAGE_TAG -f Dockerfile ."
+                dir("${APP_DIR}") {
+                    sh "docker build -t $REPO:$IMAGE_TAG -t $REPO:dev -f Dockerfile ."
+                }
             }
         }
 
@@ -64,6 +66,7 @@ pipeline {
                     sh """
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin $REGISTRY
                         docker push $REPO:$IMAGE_TAG
+                        docker push $REPO:dev
                     """
                 }
             }
@@ -71,7 +74,7 @@ pipeline {
 
         stage('Clean Up Local Docker Images') {
             steps {
-                sh "docker rmi $REPO:$IMAGE_TAG || echo 'Image not found, skipping cleanup'"
+                sh "docker rmi $REPO:$IMAGE_TAG $REPO:dev || echo 'Image not found, skipping cleanup'"
             }
         }
 
@@ -83,30 +86,40 @@ pipeline {
             }
         }
 
-        stage('Update Helm values file') {
+        stage('Update Helm Values') {
             steps {
                 script {
-                    def branchName = env.BRANCH_NAME ?: sh(returnStdout: true, script: "git rev-parse --abbrev-ref HEAD").trim()
-                    def valuesFile = ""
+                    def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    def valuesFile = "helm/values-dev.yaml" // Default to dev
 
-                    if (branchName == "dev") {
-                        valuesFile = "helm/values-dev.yaml"
-                    } else if (branchName == "master") {
+                    if (branchName == 'master') {
                         valuesFile = "helm/values-prod.yaml"
-                    } else {
+                    } else if (branchName == 'staging' || branchName.startsWith('release/')) {
                         valuesFile = "helm/values-staging.yaml"
                     }
 
                     dir("${HELM_REPO_DIR}") {
-                        sh """
-                            sed -i '' 's|^\\(\\s*tag:\\s*\\).*|\\1${IMAGE_TAG}|' $valuesFile
-                        """
+                        // First check if the tag actually needs updating
+                        def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
+                        
+                        if (currentTag != "\"${IMAGE_TAG}\"") {
+                            sh """
+                                sed -i '' 's|tag: .*|tag: \"${IMAGE_TAG}\"|' ${valuesFile}
+                            """
+                            env.VALUES_UPDATED = "true"
+                        } else {
+                            echo "Tag in ${valuesFile} already matches ${IMAGE_TAG}, no update needed"
+                            env.VALUES_UPDATED = "false"
+                        }
                     }
                 }
             }
         }
 
         stage('Commit and Push to Helm Repo') {
+            when {
+                expression { return env.VALUES_UPDATED == "true" }
+            }
             steps {
                 dir("${HELM_REPO_DIR}") {
                     sshagent(['github']) {
@@ -114,7 +127,7 @@ pipeline {
                             git config user.email "vishy.1981@gmail.com"
                             git config user.name "vishy.swaminathan"
                             git add helm/values-*.yaml
-                            git commit -m "Update image to $IMAGE_TAG"
+                            git commit -m "Auto-update: Set image tag to ${IMAGE_TAG} [BUILD ${env.BUILD_NUMBER}]"
                             git push origin main
                         """
                     }
@@ -125,10 +138,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ CI/CD pipeline completed successfully. ArgoCD will pick up the updated values file and deploy the new version."
+            echo "✅ CI/CD pipeline completed successfully. ArgoCD will sync the new image version."
         }
         failure {
-            echo "❌ CI/CD pipeline failed. Check the logs for errors."
+            echo "❌ CI/CD pipeline failed. Check logs for details."
         }
     }
 }
