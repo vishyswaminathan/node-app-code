@@ -8,7 +8,7 @@ pipeline {
     environment {
         REGISTRY = 'docker.io'
         REPO = 'vishyswaminathan/nodeapp'
-        IMAGE_TAG = "prod"
+        IMAGE_TAG = "v${env.BUILD_NUMBER}"
         SONAR_PROJECT_KEY = 'nodeapp'
         SONAR_HOST_URL = 'https://c09b-142-181-192-68.ngrok-free.app'
         SONAR_TOKEN = credentials('sonar')
@@ -46,18 +46,13 @@ pipeline {
         stage('Build Docker Image') {
     steps {
         script {
-            def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-            env.DEPLOYMENT_TAG = "prod" // Default tag
-
-            if (branchName == 'master') {
-                env.DEPLOYMENT_TAG = "prod"
-            } else if (branchName == 'feature' || branchName.startsWith('release/')) {
-                env.DEPLOYMENT_TAG = "staging"
-            }
-
+            // Since we only build from master, we can hardcode the prod tag
+            env.DEPLOYMENT_TAG = "prod"
+            
             sh """
-                docker build -t $REPO:$IMAGE_TAG -t $REPO:${DEPLOYMENT_TAG} .
+                docker build -t $REPO:$IMAGE_TAG -t $REPO:${env.DEPLOYMENT_TAG} .
                 docker images | grep nodeapp
+                echo "Built image with tags: $IMAGE_TAG (versioned) and ${env.DEPLOYMENT_TAG} (production)"
             """
         }
     }
@@ -85,8 +80,7 @@ pipeline {
 
         stage('Clean Up Local Docker Images') {
             steps {
-                sh "docker rmi $REPO:$IMAGE_TAG $REPO:${SECONDARY_TAG} || echo 'Image not found, skipping cleanup'"
-            }
+                 sh "docker rmi $REPO:$IMAGE_TAG $REPO:${env.DEPLOYMENT_TAG} || echo 'Image not found, skipping cleanup'"            }
         }
 
         stage('Clone Helm Manifest Repo') {
@@ -101,7 +95,7 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    def valuesFile = "helm/values-dev.yaml"
+                    def valuesFile = "helm/values-prod.yaml"
                     def targetTag = IMAGE_TAG
 
                     if (branchName == 'master') {
@@ -142,8 +136,7 @@ pipeline {
                                 git config user.email "vishy.1981@gmail.com"
                                 git config user.name "vishy.swaminathan"
                                 git add helm/values-*.yaml
-                                git commit -m "Auto-update: Set image tag to ${SECONDARY_TAG} [BUILD ${env.BUILD_NUMBER}]"
-                                git push origin main
+                                git commit -m "Auto-update: Set image tag to ${env.DEPLOYMENT_TAG} [BUILD ${env.BUILD_NUMBER}]"                                git push origin main
                             """
                         }
                     }
