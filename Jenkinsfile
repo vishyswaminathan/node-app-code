@@ -1,4 +1,4 @@
-//updating  master branch to test argoCD deployment once again
+//updating  master branch to test argoCD
 pipeline {
     agent any
 
