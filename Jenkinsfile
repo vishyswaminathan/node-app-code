@@ -93,7 +93,7 @@ pipeline {
             steps {
                 script {
                     def valuesFile = "helm/values-prod.yaml"
-                    def targetTag = "prod" // Always use prod tag since we only build from master
+                    def targetTag = "prod"
                     
                     dir("${HELM_REPO_DIR}") {
                         def currentTag = sh(script: "grep 'tag:' ${valuesFile} | awk '{print \$2}'", returnStdout: true).trim()
@@ -112,25 +112,25 @@ pipeline {
                 }
             }
         }
-    }
 
         stage('Commit and Push to Helm Repo') {
-    steps {
-        script {
-            dir("${HELM_REPO_DIR}") {
-                sshagent(['github']) {
-                    sh """
-                        git config user.email "vishy.1981@gmail.com"
-                        git config user.name "vishy.swaminathan"
-                        git add helm/values-*.yaml || echo "No changes to add"
-                        git commit -m "Auto-update: Set image tag to prod [BUILD ${env.BUILD_NUMBER}]" || echo "Nothing to commit"
-                        git push origin main
-                    """
+            steps {
+                script {
+                    dir("${HELM_REPO_DIR}") {
+                        sshagent(['github']) {
+                            sh """
+                                git config user.email "vishy.1981@gmail.com"
+                                git config user.name "vishy.swaminathan"
+                                git add helm/values-*.yaml || echo "No changes to add"
+                                git commit -m "Auto-update: Set image tag to prod [BUILD ${env.BUILD_NUMBER}]" || echo "Nothing to commit"
+                                git push origin main
+                            """
+                        }
+                    }
                 }
             }
         }
     }
-}
 
     post {
         success {
