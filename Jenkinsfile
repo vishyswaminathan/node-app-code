@@ -1,4 +1,4 @@
-// testing master
+// testing slack notification
 pipeline {
     agent any
 
@@ -9,6 +9,7 @@ pipeline {
     environment {
         REGISTRY = 'docker.io'
         REPO = 'vishyswaminathan/nodeapp'
+        SLACK_CHANNEL = '#jenkins'
         IMAGE_TAG = "v${env.BUILD_NUMBER}"
         SONAR_PROJECT_KEY = 'nodeapp'
         SONAR_HOST_URL = 'https://c09b-142-181-192-68.ngrok-free.app'
@@ -135,10 +136,13 @@ pipeline {
 
     post {
         success {
-            echo "✅ CI/CD pipeline completed successfully. ArgoCD will sync the new image version."
+            slackSend(channel: "${SLACK_CHANNEL}", message: "✅ *Pipeline Successful*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
         }
         failure {
-            echo "❌ CI/CD pipeline failed. Check logs for details."
+            slackSend(channel: "${SLACK_CHANNEL}", message: "🚨 *Pipeline Failed*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
+        }
+        always {
+            cleanWs()
         }
     }
 }
