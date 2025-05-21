@@ -136,10 +136,10 @@ pipeline {
 
     post {
         success {
-            slackSend(channel: "${SLACK_CHANNEL}", message: "✅ *Pipeline Successful*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
+            slackSend(channel: "${SLACK_CHANNEL}", message: "✅ *Pipeline Successful Vishy*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
         }
         failure {
-            slackSend(channel: "${SLACK_CHANNEL}", message: "🚨 *Pipeline Failed*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
+            slackSend(channel: "${SLACK_CHANNEL}", message: "🚨 *Pipeline Failed Vishy*: `${JOB_NAME}` build #${BUILD_NUMBER} (<${BUILD_URL}|View Build>)")
         }
         always {
             cleanWs()
