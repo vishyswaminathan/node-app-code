@@ -1,4 +1,4 @@
-// testing slack with argo with auto-sync
+// testing slack with build failure
 pipeline {
     agent any
 
@@ -45,7 +45,7 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+   asdss     stage('Build Docker Image') {
             steps {
                 script {
                     env.DEPLOYMENT_TAG = "prod"
