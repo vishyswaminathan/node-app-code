@@ -21,6 +21,14 @@ pipeline {
     }
 
     stages {
+
+
+stage('Force Failure for Testing') {
+    steps {
+        error('Intentional failure to test Slack notification.')
+    }
+}
+
         stage('Run Unit Tests') {
             steps {
                 dir("${APP_DIR}") {
@@ -45,7 +53,7 @@ pipeline {
             }
         }
 
-   asdss     stage('Build Docker Image') {
+      stage('Build Docker Image') {
             steps {
                 script {
                     env.DEPLOYMENT_TAG = "prod"
