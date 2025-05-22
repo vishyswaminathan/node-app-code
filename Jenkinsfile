@@ -1,4 +1,4 @@
-// testing slack notification
+// testing slack notification for argocd
 pipeline {
     agent any
 
