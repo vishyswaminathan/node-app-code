@@ -1,4 +1,4 @@
-// testing slack with argo again
+// testing slack with argo with auto-sync
 pipeline {
     agent any
 
