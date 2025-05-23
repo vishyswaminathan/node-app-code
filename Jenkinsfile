@@ -23,11 +23,11 @@ pipeline {
     stages {
 
 
-stage('Force Failure for Testing') {
-    steps {
-        error('Intentional failure to test Slack notification.')
-    }
-}
+///stage('Force Failure for Testing') {
+   /// steps {
+      ///  error('Intentional failure to test Slack notification.')
+    //}
+///}
 
         stage('Run Unit Tests') {
             steps {
